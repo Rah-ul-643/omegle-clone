@@ -22,6 +22,16 @@ class Queue {
         return element;
     }
 
+    remove(element) {
+        for (let i = this.head; i < this.tail; i++) {
+            if (this.items[i] === element) {
+                delete this.items[i];
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Peek (view the front element)
     peek() {
         return this.isEmpty() ? null : this.items[this.head];

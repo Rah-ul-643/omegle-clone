@@ -6,7 +6,7 @@ const Queue=require('./queue');
 const io = require('socket.io')(server);
 const app = express();
 
-const CLIENT_URL = 'http://localhost:3000'
+const CLIENT_URL = 'http://localhost:4000'
 const PORT = 3000;
 
 let activeUsers = [];
@@ -26,8 +26,8 @@ io.on('connection',(socket) => {
     activeUsers.push(socket.id);
 
     
-    const sendMessage = ((clientIDs,response) => {
-        io.to(clientIDs).emit('response',response);          // make the to an array of clients
+    const sendMessage = ((clientID,response) => {
+        io.to(clientID).emit('response',response);          // make the to an array of clients
     })
 
 
@@ -35,7 +35,13 @@ io.on('connection',(socket) => {
 
         while (queue.size()>1){
             const user1 = queue.dequeue();
+            if (! activeUsers.includes(user1)) continue;
+
             const user2 = queue.dequeue();
+            if (! activeUsers.includes(user2)){
+                queue.enqueue(user1);
+                continue;
+            }
 
             activePairs.push([user1,user2]);
             sendMessage(user1,{status:2, message:"connected", receiverId:user2});
@@ -45,11 +51,15 @@ io.on('connection',(socket) => {
     }
 
     const removePair = (socketId) => {
-        const pair = activePairs.find((pair) => pair.find((id) => id===socket.id ));
-        activePairs = activePairs.filter( (pair) => pair.every((id) => id!==socketId));
+        const pair = activePairs.find((pair) => pair.includes(socketId));
+        if (!pair) return; // Avoid sending messages for non-existent pairs
+    
+        activePairs = activePairs.filter((p) => !p.includes(socketId));
         console.log(`Terminated chat between users: ${pair}`);
-        sendMessage(pair, {status:3, message: "Connection terminated"}); // send message to both the users
-    }
+    
+        // Notify both users if they exist
+        pair.forEach((id) => sendMessage(id, { status: 3, message: "Connection terminated" }));
+    };
 
     socket.on('requestConnection', () => {
         queue.enqueue(socket.id);
@@ -65,11 +75,14 @@ io.on('connection',(socket) => {
         console.log(`Client with socket id: ${socket.id} disconnected`);
         activeUsers = activeUsers.filter( (id) => socket.id !== id);
         removePair(socket.id);
+        queue.remove(socket.id);    // if still in queue    
     });
 
     socket.on('sendMsg', (receiverId, message) => {
         console.log('Received message from client:',socket.id);
-        io.to(receiverId).emit('receiverMsg', message);
+        if (activePairs.find((pair) => pair.includes(receiverId) && pair.includes(socket.id))){
+            io.to(receiverId).emit('receiverMsg', message);
+        }
     })
 
 

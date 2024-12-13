@@ -1,6 +1,5 @@
 {
     "1" : "request queued, waiting",
     "2" : "connected to a user.",
-    "3" : "disconnected from a user",
-
+    "3" : "disconnected from a user"
 }
